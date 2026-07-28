@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>B站关注清理助手 - 扫描结果</title>
+    <link rel="stylesheet" href="dashboard.css">
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>B站关注清理助手</h1>
+        <p id="rule-summary">正在读取规则…</p>
+      </div>
+      <div class="actions">
+        <button id="rescan" class="secondary" type="button">重新扫描</button>
+        <button id="export" class="secondary" type="button">导出 CSV</button>
+        <button id="unfollow" class="danger" type="button" disabled>取关已勾选项</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="status-panel" aria-live="polite">
+        <strong id="status">准备开始扫描。</strong>
+        <span id="progress"></span>
+      </section>
+
+      <section class="summary" aria-label="扫描摘要">
+        <div><span>关注总数</span><strong id="following-count">—</strong></div>
+        <div><span>已扫描</span><strong id="scanned-count">—</strong></div>
+        <div><span>候选账号</span><strong id="candidate-count">—</strong></div>
+        <div><span>已勾选</span><strong id="selected-count">0</strong></div>
+      </section>
+
+      <section class="toolbar">
+        <label><input id="only-candidates" type="checkbox" checked> 仅显示候选账号</label>
+        <label><input id="only-selected" type="checkbox"> 仅显示已勾选</label>
+        <label class="search-label">搜索 <input id="search" type="search" placeholder="昵称、UID、视频标题"></label>
+        <button id="select-visible" class="text-button" type="button">勾选当前显示项</button>
+        <button id="clear-selection" class="text-button" type="button">清空勾选</button>
+      </section>
+
+      <p id="empty" class="empty">尚无结果。点击“重新扫描”开始。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col"><input id="select-all" type="checkbox" aria-label="勾选当前显示项"></th>
+              <th scope="col">UP 主</th>
+              <th scope="col">最近视频</th>
+              <th scope="col">发布时间</th>
+              <th scope="col">播放量</th>
+              <th scope="col">命中原因 / 状态</th>
+              <th scope="col">取关结果</th>
+            </tr>
+          </thead>
+          <tbody id="results"></tbody>
+        </table>
+      </div>
+
+      <aside class="safety-note">
+        <strong>操作说明：</strong>候选项只是按规则计算的结果。请逐项核对主页和视频后再勾选。取关是不可批量撤销的操作；本工具会在执行前再次确认并记录结果。
+      </aside>
+    </main>
+    <script src="dashboard.js"></script>
+  </body>
+</html>

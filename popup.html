@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>B站关注清理助手</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <h1>B站关注清理助手</h1>
+      <p class="hint">仅扫描当前浏览器已登录的 B 站账号。结果保存在本机。</p>
+
+      <label>
+        未投稿天数（N）
+        <input id="days" type="number" min="1" max="3650" value="30" inputmode="numeric">
+      </label>
+      <label>
+        最近视频播放量阈值（X）
+        <input id="views" type="number" min="0" value="1000" inputmode="numeric">
+      </label>
+      <label>
+        播放量观察期（天）
+        <input id="observation-days" type="number" min="0" max="365" value="7" inputmode="numeric">
+        <span class="field-hint">发布时间不足此天数的视频，不按低播放量筛选。</span>
+      </label>
+      <label>
+        命中方式
+        <select id="mode">
+          <option value="any">满足任一条件</option>
+          <option value="all">同时满足两项</option>
+        </select>
+      </label>
+
+      <button id="open-dashboard" type="button">开始扫描</button>
+      <p id="error" class="error" role="alert"></p>
+      <p class="notice">扫描和取关均依赖 B 站当前页面与数据服务；请先用小样本核对结果。取关必须在结果页再次确认。</p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

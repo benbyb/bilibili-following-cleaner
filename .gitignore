@@ -1,0 +1,8 @@
+# Codex 本地运行状态，不属于扩展源码
+.agents/
+.codex/
+
+# 本地日志和系统临时文件
+*.log
+Thumbs.db
+.DS_Store

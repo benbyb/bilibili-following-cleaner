@@ -1,0 +1,48 @@
+:root { color-scheme: light; font-family: "Microsoft YaHei", system-ui, sans-serif; color: #18191c; background: #f6f7f8; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+header { align-items: center; background: #fff; border-bottom: 1px solid #e3e5e7; display: flex; gap: 24px; justify-content: space-between; padding: 18px clamp(20px, 4vw, 64px); }
+h1 { font-size: 21px; margin: 0 0 5px; }
+header p { color: #61666d; font-size: 13px; margin: 0; }
+main { margin: 0 auto; max-width: 1440px; padding: 24px clamp(20px, 4vw, 64px) 40px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button { background: #00aeec; border: 0; border-radius: 6px; color: #fff; cursor: pointer; font: inherit; font-size: 14px; padding: 9px 13px; }
+button:hover:not(:disabled) { background: #00a1d6; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+button.secondary { background: #fff; border: 1px solid #c9ccd0; color: #18191c; }
+button.secondary:hover:not(:disabled) { background: #f1f2f3; }
+button.danger { background: #d92d20; }
+button.danger:hover:not(:disabled) { background: #b42318; }
+.status-panel { align-items: center; background: #e5f6fd; border: 1px solid #b9e6f8; border-radius: 8px; display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; padding: 13px 16px; }
+.status-panel strong { font-size: 14px; }
+#progress { color: #61666d; font-size: 13px; }
+.summary { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(110px, 1fr)); margin-bottom: 16px; }
+.summary div { background: #fff; border: 1px solid #e3e5e7; border-radius: 8px; padding: 14px 16px; }
+.summary span { color: #61666d; display: block; font-size: 13px; margin-bottom: 7px; }
+.summary strong { font-size: 20px; }
+.toolbar { align-items: center; background: #fff; border: 1px solid #e3e5e7; border-radius: 8px 8px 0 0; display: flex; flex-wrap: wrap; gap: 14px; padding: 11px 14px; }
+.toolbar label { font-size: 13px; white-space: nowrap; }
+.search-label { align-items: center; display: flex; gap: 6px; }
+input[type="search"] { border: 1px solid #c9ccd0; border-radius: 5px; font: inherit; padding: 6px 8px; width: min(260px, 45vw); }
+.text-button { background: transparent; color: #0077b6; padding: 4px; }
+.text-button:hover:not(:disabled) { background: transparent; color: #00aeec; text-decoration: underline; }
+.table-wrap { background: #fff; border: 1px solid #e3e5e7; border-top: 0; overflow-x: auto; }
+table { border-collapse: collapse; min-width: 980px; width: 100%; }
+th, td { border-bottom: 1px solid #f1f2f3; padding: 12px 10px; text-align: left; vertical-align: top; }
+th { background: #fafafa; color: #61666d; font-size: 13px; font-weight: 600; position: sticky; top: 0; }
+td { font-size: 13px; }
+tbody tr:hover { background: #fafafa; }
+.profile { align-items: center; display: flex; gap: 9px; min-width: 145px; }
+.avatar { align-items: center; background: #e5f6fd; border-radius: 50%; color: #0077b6; display: inline-flex; flex: 0 0 auto; font-size: 13px; font-weight: 700; height: 32px; justify-content: center; overflow: hidden; width: 32px; }
+.avatar img { height: 100%; object-fit: cover; width: 100%; }
+.profile a, .video-link { color: #0077b6; text-decoration: none; }
+.profile a:hover, .video-link:hover { text-decoration: underline; }
+.uid, .muted { color: #9499a0; font-size: 12px; margin-top: 3px; }
+.reasons { display: flex; flex-wrap: wrap; gap: 5px; max-width: 260px; }
+.badge { background: #fff0ed; border: 1px solid #ffcdc7; border-radius: 999px; color: #b42318; font-size: 12px; padding: 3px 7px; }
+.badge.status { background: #f1f2f3; border-color: #e3e5e7; color: #61666d; }
+.badge.success { background: #ecfdf3; border-color: #abefc6; color: #067647; }
+.badge.failure { background: #fff0ed; border-color: #ffcdc7; color: #b42318; }
+.empty { color: #61666d; font-size: 14px; margin: 18px 0; text-align: center; }
+.safety-note { background: #fff8e6; border: 1px solid #ffe0a3; border-radius: 8px; color: #694c00; font-size: 13px; line-height: 1.6; margin-top: 18px; padding: 13px 16px; }
+@media (max-width: 720px) { header { align-items: flex-start; flex-direction: column; } .summary { grid-template-columns: repeat(2, 1fr); } }
