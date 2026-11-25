@@ -1,0 +1,28 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const rules=require('./rules.js'),facts=require('./profile-facts.js');
+const manifest=JSON.parse(fs.readFileSync('manifest.json'));assert.equal(manifest.side_panel.default_path,'sidepanel.html');assert.ok(!manifest.action.default_popup);
+const html=fs.readFileSync('sidepanel.html','utf8');for(const [,file] of html.matchAll(/(?:src|href)="([^"]+)"/g))assert.ok(fs.existsSync(file));
+const d={querySelectorAll:()=>[{textContent:JSON.stringify([{sec_uid:'wrong',nickname:'other',aweme_count:999},{sec_uid:'right',nickname:'test',aweme_count:0,follower_count:7}])}]};
+assert.deepEqual(facts(d,'douyin','right'),{workCount:0,followerCount:7});assert.deepEqual(facts(d,'douyin','none'),{});
+const sample={type:'user_post',page:1,has_more:false,aweme_list:[1,2,3].map(n=>({author:{sec_uid:'right'},create_time:1700000000+n,statistics:{play_count:n,comment_count:0}}))};
+const posts=()=>facts({querySelectorAll:()=>[{textContent:JSON.stringify(sample)}]},'douyin','right');
+assert.equal(posts().latestViews,3);assert.equal(posts().last3AverageViews,2);assert.equal(posts().latestComments,0);
+sample.aweme_list[1].author.sec_uid='elsewhere';assert.equal(posts().latestViews,undefined);
+const src=fs.readFileSync('panel-data.js','utf8');
+const c={URL,URLSearchParams,AbortSignal,setTimeout,chrome:{tabs:{query:async()=>[{id:7,url:'https://space.bilibili.com/12/relation/follow'}],sendMessage:async()=>({token:'fixture'})}}};
+vm.createContext(c);vm.runInContext(src,c);
+assert.equal(c.route('https://www.douyin.com/follow').platform,'douyin');assert.equal(c.route('https://www.douyin.com/video/1'),null);
+assert.equal(c.route('https://space.bilibili.com.example.org/12/relation/follow'),null);
+assert.equal(c.avg3([{v:0},{v:2},{v:4}],'v'),2);assert.equal(c.avg3([{v:0}],'v'),null);
+const r=rules.validate({version:1,name:'zero',group:{mode:'all',conditions:[{field:'workCount',op:'eq',value:0},{field:'latestComments',op:'lt',value:1}]}});
+assert.equal(rules.evaluate(r,{workCount:0}).state,'unknown');assert.ok(rules.evaluate(r,{workCount:0,latestComments:0}).match);
+(async()=>{
+  const ctx={tabId:7,url:'https://space.bilibili.com/12/relation/follow',platform:'bilibili',mid:'12',approved:new Set(['2'])};
+  let posts=0,who=12,attribute=2;
+  c.api=async(path,opt)=>{if(path.includes('/nav'))return {isLogin:true,mid:who};if(opt?.method==='POST'){posts++;attribute=0;return {};}return {attribute};};
+  await assert.rejects(c.unfollow(ctx,'3'));assert.equal(posts,0);
+  who=88;await assert.rejects(c.unfollow(ctx,'2'));assert.equal(posts,0);
+  who=12;await assert.rejects(c.unfollow({...ctx,tabId:8},'2'));assert.equal(posts,0);
+  await c.unfollow(ctx,'2');assert.equal(posts,1);await assert.rejects(c.unfollow(ctx,'2'));assert.equal(posts,1);
+  console.log('Side panel entry, source identity, missing fields and write guards passed.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

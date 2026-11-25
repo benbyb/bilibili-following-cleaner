@@ -1,17 +1,17 @@
 {
   "manifest_version": 3,
   "name": "关注清理助手（本地版）",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "扫描本人关注列表，按投稿时间和最近视频播放量筛选，并在人工确认后逐项取关。",
-  "permissions": ["storage", "tabs"],
+  "permissions": ["storage", "tabs", "sidePanel"],
+  "side_panel": {"default_path": "sidepanel.html"},
   "host_permissions": [
     "https://api.bilibili.com/*",
     "https://space.bilibili.com/*",
     "https://www.bilibili.com/*"
   ],
   "action": {
-    "default_title": "B站关注清理助手",
-    "default_popup": "popup.html"
+    "default_title": "整理当前网站的关注"
   },
   "background": {
     "service_worker": "background.js"
@@ -19,7 +19,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.douyin.com/*", "https://www.kuaishou.com/*"],
-      "js": ["platform-content.js"],
+      "js": ["profile-facts.js", "following-page.js"],
       "run_at": "document_idle"
     },
     {

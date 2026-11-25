@@ -1,9 +1,10 @@
 (function (root) {
   'use strict';
-  const fields = ['workCount', 'daysSinceLatest', 'latestViews', 'last3AverageViews', 'accountStatus'];
+  const fields = ['workCount', 'daysSinceLatest', 'latestViews', 'last3AverageViews', 'accountStatus', 'latestComments', 'last3AverageComments', 'followerCount', 'avatarUrl'];
   const ops = ['gt', 'gte', 'lt', 'lte', 'eq'];
   const labels = { workCount: '作品数量', daysSinceLatest: '距最近投稿天数', latestViews: '最近作品播放量', last3AverageViews: '近三条平均播放量', accountStatus: '平台明确显示的账号状态' };
   const symbols = { gt: '>', gte: '≥', lt: '<', lte: '≤', eq: '=' };
+  Object.assign(labels,{latestComments:'最近作品评论数',last3AverageComments:'近三条平均评论数',followerCount:'粉丝数',avatarUrl:'头像地址'});
   function validate(rule) {
     let count = 0;
     function node(value, depth) {
@@ -18,6 +19,8 @@
       if (!fields.includes(value.field) || !ops.includes(value.op)) throw new Error('不支持的字段或比较符');
       if (value.field === 'accountStatus') {
         if (value.op !== 'eq' || typeof value.value !== 'string' || !value.value.trim() || value.value.length > 100) throw new Error('账号状态仅支持非空文字的 eq 比较');
+      } else if (value.field === 'avatarUrl') {
+        if(value.op !== 'eq' || typeof value.value !== 'string' || value.value.length > 4096 || !/^https:\/\//i.test(value.value)) throw new Error('头像规则须为完整 HTTPS 地址的 eq 比较');
       } else if (typeof value.value !== 'number' || !Number.isFinite(value.value) || value.value < 0) throw new Error('数值条件须为非负有限数字');
       return { field: value.field, op: value.op, value: value.value };
     }
@@ -42,7 +45,7 @@
         return { state, reasons: state === 'true' ? children.filter(item => item.state === 'true').flatMap(item => item.reasons) : [] };
       }
       const actual = values?.[node.field];
-      const valid = node.field === 'accountStatus'
+      const valid = ['accountStatus','avatarUrl'].includes(node.field)
         ? typeof actual === 'string' && actual.trim() && actual !== 'unknown' && actual !== '未知'
         : typeof actual === 'number' && Number.isFinite(actual) && actual >= 0;
       if (!valid) return { state: 'unknown', reasons: [] };
