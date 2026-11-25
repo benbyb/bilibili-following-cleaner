@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "B站关注清理助手（本地版）",
-  "version": "0.1.0",
+  "name": "关注清理助手（本地版）",
+  "version": "0.2.0",
   "description": "扫描本人关注列表，按投稿时间和最近视频播放量筛选，并在人工确认后逐项取关。",
   "permissions": ["storage", "tabs"],
   "host_permissions": [
@@ -17,6 +17,11 @@
     "service_worker": "background.js"
   },
   "content_scripts": [
+    {
+      "matches": ["https://www.douyin.com/*", "https://www.kuaishou.com/*"],
+      "js": ["platform-content.js"],
+      "run_at": "document_idle"
+    },
     {
       "matches": ["https://*.bilibili.com/*"],
       "js": ["content.js"],

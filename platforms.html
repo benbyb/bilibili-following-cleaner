@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>跨平台名单采集（实验）</title><link rel="stylesheet" href="dashboard.css"></head>
+<body><main><h1>抖音 / 快手：已加载名单采集</h1>
+<p>此入口尚不支持完整自动分页、作品统计或自动取关。请打开自己的关注列表，选择标签页，再到网页点选关注列表区域。采集结果需人工核对是否混入推荐账号。</p>
+<select id="platform"><option value="douyin">抖音</option><option value="kuaishou">快手</option></select>
+<select id="tabs" aria-label="平台标签页"></select><button id="refresh">刷新标签页</button>
+<button id="pick">在网页选择关注列表区域</button><button id="collect">采集已加载名单</button><button id="download">导出 TXT</button>
+<p id="message" role="status">名单不会全量渲染。滚动加载后可再次采集，按主页标识去重。</p>
+<p>导出的 ID 是网页主页标识，不保证等同于平台内部 UID 或展示账号号。文件始终标注“部分名单”。</p>
+<section id="avatar-review"></section>
+<section id="reviewed-profiles" aria-live="polite"></section>
+</main><script src="platforms.js"></script><script src="avatar-review.js"></script><script src="platform-page.js"></script></body></html>

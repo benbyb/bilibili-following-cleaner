@@ -31,6 +31,13 @@ let config = readConfigFromUrl();
 let records = [];
 let followingCount = 0;
 let scanRunning = false;
+let queueRunning = false;
+let queuePaused = false;
+let queueStopped = false;
+let followingList = [];
+let listComplete = false;
+let scanOwner = null;
+let customRules = null;
 
 function readConfigFromUrl() {
   const query = new URLSearchParams(location.search);
@@ -77,26 +84,37 @@ function daysSince(timestamp) {
   return (Date.now() - timestamp) / 86_400_000;
 }
 
+let currentPage = 0;
+let keepIds = new Set();
 function getVisibleRecords() {
   const searchTerm = elements.search.value.trim().toLocaleLowerCase();
-  return records.filter((record) => {
-    if (elements.onlyCandidates.checked && !record.candidate) return false;
+  const filter = document.querySelector('#queue-filter').value;
+  const matches = records.filter((record) => {
+    if (!record.candidate || keepIds.has(String(record.mid))) return false;
+    if (filter && filter !== (record.unfollowResult?.ok ? '已取关' : record.unfollowResult?.state || '未操作')) return false;
     if (elements.onlySelected.checked && !record.selected) return false;
     if (!searchTerm) return true;
     const haystack = [record.name, record.mid, record.latest?.title, record.status]
       .filter(Boolean).join(" ").toLocaleLowerCase();
     return haystack.includes(searchTerm);
   });
+  const pages = Math.max(1, Math.ceil(matches.length / 50));
+  currentPage = Math.min(currentPage, pages - 1);
+  document.querySelector('#page-info').textContent = `${currentPage + 1} / ${pages} 页 · ${matches.length} 条`;
+  document.querySelector('#prev-page').disabled = currentPage === 0;
+  document.querySelector('#next-page').disabled = currentPage >= pages - 1;
+  return matches.slice(currentPage * 50, (currentPage + 1) * 50);
 }
 
 function updateSummary() {
-  const candidates = records.filter((record) => record.candidate).length;
+  const candidates = records.filter((record) => record.candidate && !keepIds.has(String(record.mid))).length;
   const selected = records.filter((record) => record.selected).length;
   elements.followingCount.textContent = followingCount ? formatNumber(followingCount) : "—";
-  elements.scannedCount.textContent = formatNumber(records.length);
+  elements.scannedCount.textContent = formatNumber(records.filter(record => !record.reviewOnly).length);
   elements.candidateCount.textContent = formatNumber(candidates);
   elements.selectedCount.textContent = formatNumber(selected);
-  elements.unfollow.disabled = scanRunning || selected === 0;
+  elements.unfollow.disabled = scanRunning || queueRunning || selected === 0;
+  elements.rescan.disabled = scanRunning || queueRunning;
 }
 
 function createLink(text, href, className = "") {
@@ -130,7 +148,7 @@ function renderResults() {
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = Boolean(record.selected);
-    checkbox.disabled = !record.candidate || Boolean(record.unfollowResult);
+    checkbox.disabled = queueRunning || !record.candidate || Boolean(record.unfollowResult);
     checkbox.setAttribute("aria-label", `选择 ${record.name}`);
     checkbox.addEventListener("change", () => {
       record.selected = checkbox.checked;
@@ -183,7 +201,13 @@ function renderResults() {
     row.append(dateCell);
 
     const viewsCell = document.createElement("td");
-    viewsCell.textContent = record.latest ? formatNumber(record.latest.views) : "—";
+    viewsCell.textContent = record.latest?.views != null ? formatNumber(record.latest.views) : "未知";
+    if (record.latest) {
+      const extra = document.createElement("div");
+      extra.className = "muted";
+      extra.textContent = `作品数 ${record.latest.workCount ?? "未知"}；近三条播放：${(record.latest.recent || []).map(v => v.views ?? "未知").join(" / ")}`;
+      viewsCell.append(extra);
+    }
     row.append(viewsCell);
 
     const reasonCell = document.createElement("td");
@@ -200,6 +224,9 @@ function renderResults() {
     const resultCell = document.createElement("td");
     if (record.unfollowResult?.ok) {
       resultCell.append(createBadge("已取关", "success"));
+    } else if (record.unfollowResult?.state) {
+      resultCell.append(createBadge(record.unfollowResult.state, "status"));
+      if (record.unfollowResult.error) resultCell.append(document.createTextNode(record.unfollowResult.error));
     } else if (record.unfollowResult?.error) {
       resultCell.append(createBadge(`失败：${record.unfollowResult.error}`, "failure"));
     } else {
@@ -221,16 +248,26 @@ function updateSelectAllState() {
 }
 
 function saveSnapshot() {
-  const snapshot = { config, followingCount, records, savedAt: new Date().toISOString() };
-  chrome.storage.local.set({ lastScan: snapshot }).catch(() => {});
+  const snapshot = { config, followingCount, records, followingList, listComplete, scanOwner, savedAt: new Date().toISOString() };
+  chrome.storage.local.set({ lastScan: snapshot }).catch(error => {
+    setStatus(`本地保存失败，请立即导出结果：${error.message}`);
+  });
 }
 
 async function loadSnapshot() {
   const { lastScan } = await chrome.storage.local.get("lastScan");
-  if (!lastScan?.records?.length) return;
+  if (!lastScan) return;
   config = lastScan.config || config;
   followingCount = lastScan.followingCount || 0;
-  records = lastScan.records;
+  records = lastScan.records || [];
+  followingList = lastScan.followingList || [];
+  listComplete = lastScan.listComplete === true;
+  scanOwner = lastScan.scanOwner || null;
+  records.forEach(record => {
+    record.selected = false;
+    if (record.unfollowResult?.state === "正在执行") record.unfollowResult.state = "结果待核实";
+    if (record.unfollowResult?.state === "等待执行") record.unfollowResult.state = "已跳过";
+  });
   updateRuleSummary();
   setStatus(`已载入本机上次扫描结果（${formatDate(Date.parse(lastScan.savedAt))}）。`);
   renderResults();
@@ -239,13 +276,18 @@ async function loadSnapshot() {
 async function fetchApi(path, options = {}) {
   const response = await fetch(`${API_ORIGIN}${path}`, {
     credentials: "include",
+    signal: AbortSignal.timeout(20000),
     cache: "no-store",
     headers: { Accept: "application/json, text/plain, */*", ...(options.headers || {}) },
     ...options
   });
   if (!response.ok) throw new Error(`请求失败（HTTP ${response.status}）。`);
   const data = await response.json();
-  if (data.code !== 0) throw new Error(data.message || `接口返回错误 ${data.code}。`);
+  if (data.code !== 0) {
+    const error = new Error(data.message || `接口返回错误 ${data.code}。`);
+    error.apiRejected = true;
+    throw error;
+  }
   return data.data;
 }
 
@@ -257,24 +299,33 @@ async function getNavigation() {
 
 async function getFollowings(mid) {
   const all = [];
+  followingList = all;
+  listComplete = false;
   const seen = new Set();
   let page = 1;
   while (page <= 200) {
     setStatus("正在读取关注列表…", `第 ${page} 页`);
     const data = await fetchApi(`/x/relation/followings?vmid=${encodeURIComponent(mid)}&pn=${page}&ps=50&order=desc&order_type=attention`);
-    const list = Array.isArray(data.list) ? data.list : [];
+    if (!Array.isArray(data.list)) throw new Error('关注列表格式异常，已保留部分结果');
+    const list = data.list;
+    const previousCount = all.length;
     for (const item of list) {
       const itemMid = Number(item.mid);
-      if (itemMid && !seen.has(itemMid)) {
+      if (Number.isSafeInteger(itemMid) && itemMid > 0 && !seen.has(itemMid)) {
         seen.add(itemMid);
         all.push({ mid: itemMid, name: item.uname || item.name || `UID ${itemMid}`, face: item.face || "" });
       }
     }
+    followingCount = all.length;
+    updateSummary();
+    setStatus("正在采集关注名单", `第 ${page} 页，已采集 ${all.length} / ${Number.isSafeInteger(data.total) ? data.total : '未知'} 人`);
+    saveSnapshot();
+    if (Number.isSafeInteger(data.total) && all.length === data.total) { listComplete = true; break; }
     if (!list.length || list.length < 50) break;
+    if (all.length === previousCount) throw new Error('分页返回重复数据，已停止；名单不完整');
     page += 1;
-    await wait(120);
+    await wait(1500);
   }
-  if (!all.length) throw new Error("未读取到关注列表。可能是页面数据格式已变化，或当前登录状态不可用。");
   return all;
 }
 
@@ -301,19 +352,22 @@ async function getLatestVideo(mid, mixinKey) {
   const query = encodeWbi({
     mid,
     pn: 1,
-    ps: 1,
+    ps: 3,
     order: "pubdate",
     platform: "web",
     web_location: 1550101
   }, mixinKey);
   const data = await fetchApi(`/x/space/wbi/arc/search?${query}`);
-  const video = data?.list?.vlist?.[0];
+  const recent = (data?.list?.vlist || []).slice().sort((a,b) => b.created-a.created).slice(0,3).map(v => ({title:v.title, publishedAt: Number(v.created)*1000, views: typeof v.play === "number" && v.play >= 0 ? v.play : null}));
+  const video = (data?.list?.vlist || []).slice().sort((a,b) => b.created-a.created)[0];
   if (!video) return null;
   const bvid = video.bvid || "";
   return {
     title: video.title || "未命名视频",
     publishedAt: Number(video.created) * 1000,
-    views: Number(video.play) || 0,
+    views: typeof video.play === "number" && video.play >= 0 ? video.play : null,
+    recent,
+    workCount: Number.isFinite(data?.page?.count) ? data.page.count : null,
     url: bvid ? `https://www.bilibili.com/video/${bvid}` : `https://space.bilibili.com/${mid}/upload/video`
   };
 }
@@ -324,7 +378,7 @@ function buildRecord(following, latest, status = "") {
     if (daysSince(latest.publishedAt) >= config.days) {
       reasons.push(`超过 ${config.days} 天未投稿`);
     }
-    if (daysSince(latest.publishedAt) >= config.observationDays && latest.views < config.views) {
+    if (latest.views !== null && daysSince(latest.publishedAt) >= config.observationDays && latest.views < config.views) {
       reasons.push(`播放量低于 ${formatNumber(config.views)}`);
     }
   }
@@ -334,15 +388,18 @@ function buildRecord(following, latest, status = "") {
     latest,
     reasons,
     candidate,
-    selected: candidate,
+    selected: false,
     status: status || (latest ? "未命中" : "未发现可识别的普通视频，需人工查看"),
     scannedAt: new Date().toISOString()
   };
 }
 
 async function startScan() {
-  if (scanRunning) return;
+  if (scanRunning || queueRunning) return;
   scanRunning = true;
+  followingList = [];
+  listComplete = false;
+  scanOwner = null;
   records = [];
   followingCount = 0;
   updateRuleSummary();
@@ -354,9 +411,15 @@ async function startScan() {
   try {
     setStatus("正在确认登录状态…");
     const navigation = await getNavigation();
+    scanOwner = String(navigation.mid);
     const followings = await getFollowings(navigation.mid);
     followingCount = followings.length;
     renderResults();
+    if (new URLSearchParams(location.search).get('listOnly') === '1') {
+      saveSnapshot();
+      setStatus(`名单采集结束：${followingCount} 人。请导出 TXT。`, listComplete ? '已按平台总数核对' : '完整性未确认');
+      return;
+    }
 
     const imgKey = getImageKey(navigation.wbi_img?.img_url);
     const subKey = getImageKey(navigation.wbi_img?.sub_url);
@@ -371,6 +434,8 @@ async function startScan() {
         records.push(buildRecord(following, latest));
       } catch (error) {
         records.push(buildRecord(following, null, `读取失败：${shortError(error)}`));
+        saveSnapshot();
+        throw error;
       }
       if ((index + 1) % 10 === 0 || index === followings.length - 1) {
         saveSnapshot();
@@ -382,7 +447,7 @@ async function startScan() {
       await wait(450);
     }
     saveSnapshot();
-    setStatus("扫描完成。请在取关前逐项核对候选账号。", `共扫描 ${records.length} 个关注账号`);
+    setStatus("扫描完成。请在取关前逐项核对候选账号。", `共扫描 ${records.length} 个；名单${listComplete ? "已按平台总数核对" : "完整性未确认"}`);
   } catch (error) {
     setStatus(`扫描未完成：${shortError(error)}`);
   } finally {
@@ -424,6 +489,18 @@ async function unfollowOne(mid, csrfToken) {
 }
 
 async function unfollowSelected() {
+  if (queueRunning || scanRunning) return;
+  if (!navigator.locks) return setStatus("浏览器不支持任务锁，无法安全开始取关。");
+  await navigator.locks.request("following-cleaner-write", { ifAvailable: true }, async (lock) => {
+    if (!lock) return setStatus("另一个扩展页面正在取关，请先结束该任务。");
+    queueRunning = true;
+    try { await runUnfollowQueue(); }
+    catch (error) { setStatus(`取关已停止：${shortError(error)}`); }
+    finally { queueRunning = false; renderResults(); }
+  });
+}
+
+async function runUnfollowQueue() {
   const selected = records.filter((record) => record.selected && record.candidate && !record.unfollowResult);
   if (!selected.length) return;
   const firstConfirmation = window.confirm(
@@ -439,30 +516,83 @@ async function unfollowSelected() {
 
   let csrfToken;
   try {
+    const current = await getNavigation();
+    if (!scanOwner || String(current.mid) !== String(scanOwner)) throw new Error("当前账号与扫描账号不一致，请重新扫描。");
     csrfToken = await requestCsrfToken();
   } catch (error) {
     setStatus(`未开始取关：${shortError(error)}`);
     return;
   }
 
-  elements.unfollow.disabled = true;
-  elements.rescan.disabled = true;
+  queuePaused = false;
+  queueStopped = false;
+  const panel = document.createElement("section");
+  panel.className = "status-panel";
+  const progress = document.createElement("span");
+  const pause = document.createElement("button");
+  pause.textContent = "暂停";
+  pause.onclick = () => { queuePaused = !queuePaused; pause.textContent = queuePaused ? "继续" : "暂停"; };
+  const stop = document.createElement("button");
+  stop.textContent = "停止后续操作";
+  stop.onclick = () => { queueStopped = true; };
+  panel.append(progress, pause, stop);
+  document.querySelector("main").prepend(panel);
+  selected.forEach(record => { record.unfollowResult = { state: "等待执行" }; });
+  let done = 0;
+  let activeMs = 0;
+  let lastTick = Date.now();
+  const timer = setInterval(() => {
+    const now = Date.now();
+    if (!queuePaused) activeMs += now - lastTick;
+    lastTick = now;
+    const seconds = Math.round(activeMs / 1000);
+    const eta = done ? Math.ceil(seconds / done * (selected.length - done)) : null;
+    progress.textContent = `${queuePaused ? "已暂停" : "执行中"} · ${done}/${selected.length} · 已用 ${seconds} 秒 · ${done && seconds ? (done * 60 / seconds).toFixed(1) : "—"} 项/分钟 · 剩余 ${queuePaused ? "暂停估算" : eta === null ? "估算中" : eta + " 秒"}`;
+  }, 500);
+  renderResults();
+  try {
   for (let index = 0; index < selected.length; index += 1) {
+    while (queuePaused && !queueStopped) await wait(200);
+    if (queueStopped) break;
     const record = selected[index];
+    record.unfollowResult = { state: "正在执行" };
+    await chrome.storage.local.set({ lastScan: { config, followingCount, records, followingList, listComplete, scanOwner, savedAt: new Date().toISOString() } });
+    renderResults();
     setStatus("正在逐项取关…", `${index + 1} / ${selected.length}：${record.name}`);
+    let sent = false;
+    let accepted = false;
     try {
+      const current = await getNavigation();
+      if (String(current.mid) !== String(scanOwner)) throw new Error("登录账号变化");
+      sent = true;
       await unfollowOne(record.mid, csrfToken);
+      accepted = true;
+      const relation = await fetchApi(`/x/relation?fid=${encodeURIComponent(record.mid)}`);
+      if (relation?.attribute !== 0) throw new Error("操作返回成功，但关系状态尚未确认");
       record.unfollowResult = { ok: true, at: new Date().toISOString() };
       record.selected = false;
     } catch (error) {
-      record.unfollowResult = { ok: false, error: shortError(error), at: new Date().toISOString() };
+      record.unfollowResult = { ok: false, state: sent ? (!accepted && error.apiRejected ? "失败（平台拒绝）" : "结果待核实") : "未执行", error: shortError(error), at: new Date().toISOString() };
+      queueStopped = true;
     }
+    done += 1;
     saveSnapshot();
     renderResults();
-    await wait(900);
+    if (index < selected.length - 1 && !queueStopped) {
+      for (let tick = 0; tick < 25 && !queueStopped; tick += 1) {
+        while (queuePaused && !queueStopped) await wait(200);
+        await wait(200);
+      }
+    }
   }
-  setStatus("取关流程已结束。请查看每一项结果；失败项不会自动重试。", `本次尝试 ${selected.length} 项`);
-  elements.rescan.disabled = false;
+  } finally {
+    clearInterval(timer);
+    selected.filter(record => record.unfollowResult?.state === "等待执行").forEach(record => { record.unfollowResult = { state: "已跳过" }; });
+    pause.disabled = stop.disabled = true;
+    progress.textContent = `已结束 · 已处理 ${done}/${selected.length} · 成功 ${selected.filter(r => r.unfollowResult?.ok).length} · 待核实 ${selected.filter(r => r.unfollowResult?.state === "结果待核实").length} · 跳过 ${selected.length - done}`;
+    saveSnapshot();
+  }
+  setStatus("取关队列已结束；异常时已停止后续操作，请核对结果。");
   renderResults();
 }
 
@@ -480,7 +610,7 @@ function exportCsv() {
       record.latest?.views ?? "",
       record.reasons.join("；"),
       record.status,
-      record.unfollowResult?.ok ? "已取关" : (record.unfollowResult?.error ? `失败：${record.unfollowResult.error}` : "未操作"),
+      record.unfollowResult?.ok ? "已取关" : [record.unfollowResult?.state || "未操作", record.unfollowResult?.error || ""].join(' '),
       record.scannedAt
     ]);
   }
@@ -494,7 +624,8 @@ function exportCsv() {
 }
 
 function escapeCsv(value) {
-  const text = String(value ?? "");
+  let text = String(value ?? "");
+  if (/^[=+@\-\t\r]/.test(text)) text = "'" + text;
   return /[",\r\n]/.test(text) ? `"${text.replaceAll("\"", "\"\"")}"` : text;
 }
 
@@ -567,9 +698,13 @@ function toLittleEndianHex(value) {
 }
 
 elements.onlyCandidates.addEventListener("change", renderResults);
+document.querySelector('#prev-page').onclick = () => { currentPage--; renderResults(); };
+document.querySelector('#next-page').onclick = () => { currentPage++; renderResults(); };
+document.querySelector('#queue-filter').onchange = () => { currentPage = 0; renderResults(); };
 elements.onlySelected.addEventListener("change", renderResults);
 elements.search.addEventListener("input", renderResults);
 elements.selectAll.addEventListener("change", () => {
+  if (queueRunning) return;
   const checked = elements.selectAll.checked;
   getVisibleRecords().filter((record) => record.candidate && !record.unfollowResult)
     .forEach((record) => { record.selected = checked; });
@@ -577,12 +712,14 @@ elements.selectAll.addEventListener("change", () => {
   renderResults();
 });
 elements.selectVisible.addEventListener("click", () => {
+  if (queueRunning) return;
   getVisibleRecords().filter((record) => record.candidate && !record.unfollowResult)
     .forEach((record) => { record.selected = true; });
   saveSnapshot();
   renderResults();
 });
 elements.clearSelection.addEventListener("click", () => {
+  if (queueRunning) return;
   records.forEach((record) => { record.selected = false; });
   saveSnapshot();
   renderResults();

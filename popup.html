@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>B站关注清理助手</title>
+    <title>关注清理助手</title>
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
     <main>
-      <h1>B站关注清理助手</h1>
-      <p class="hint">仅扫描当前浏览器已登录的 B 站账号。结果保存在本机。</p>
+      <h1>关注清理助手</h1>
+      <p class="hint">以下规则用于 B 站作品筛选。仅需导出名单时，直接选择下方的平台入口。</p>
 
       <label>
         未投稿天数（N）
@@ -32,7 +32,10 @@
         </select>
       </label>
 
-      <button id="open-dashboard" type="button">开始扫描</button>
+      <button id="open-dashboard" type="button">B站：扫描作品并筛选</button>
+      <button id="list-only" type="button">B站：仅采集名单，不扫描作品</button>
+      <button id="restore" type="button">查看上次保存的 B 站结果</button>
+      <button id="other-platforms" type="button">抖音 / 快手：网页采集（实验）</button>
       <p id="error" class="error" role="alert"></p>
       <p class="notice">扫描和取关均依赖 B 站当前页面与数据服务；请先用小样本核对结果。取关必须在结果页再次确认。</p>
     </main>

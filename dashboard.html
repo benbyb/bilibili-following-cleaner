@@ -15,6 +15,7 @@
       <div class="actions">
         <button id="rescan" class="secondary" type="button">重新扫描</button>
         <button id="export" class="secondary" type="button">导出 CSV</button>
+        <button id="export-txt" class="secondary" type="button">导出关注名单 TXT</button>
         <button id="unfollow" class="danger" type="button" disabled>取关已勾选项</button>
       </div>
     </header>
@@ -33,14 +34,28 @@
       </section>
 
       <section class="toolbar">
-        <label><input id="only-candidates" type="checkbox" checked> 仅显示候选账号</label>
+        <label><input id="only-candidates" type="checkbox" checked disabled> 仅显示候选账号（全名单导出 TXT）</label>
         <label><input id="only-selected" type="checkbox"> 仅显示已勾选</label>
         <label class="search-label">搜索 <input id="search" type="search" placeholder="昵称、UID、视频标题"></label>
         <button id="select-visible" class="text-button" type="button">勾选当前显示项</button>
         <button id="clear-selection" class="text-button" type="button">清空勾选</button>
       </section>
 
+      <details class="safety-note"><summary>自定义分类规则（JSON）</summary>
+        <label>本次管理页保留的 B站 UID（每行一个）<textarea id="keep-ids" rows="3"></textarea></label>
+        <button id="apply-keep" type="button">应用保留名单</button>
+        <p>导入规则后点击应用；缺失数据不会命中。修改规则将清空勾选。</p>
+        <input id="rules-file" type="file" accept=".json,application/json">
+        <textarea id="rules-editor" rows="10" style="width:100%" aria-label="规则 JSON"></textarea>
+        <button id="rules-apply" type="button">应用规则</button>
+        <button id="rules-export" type="button">导出规则</button>
+        <span id="rules-message" role="status"></span>
+      </details>
+
+      <section id="avatar-review" aria-label="头像人工复核"></section>
       <p id="empty" class="empty">尚无结果。点击“重新扫描”开始。</p>
+      <nav aria-label="候选分页"><button id="prev-page" type="button">上一页</button> <span id="page-info"></span> <button id="next-page" type="button">下一页</button>
+      <select id="queue-filter" aria-label="按执行状态筛选"><option value="">全部状态</option><option>等待执行</option><option>正在执行</option><option>已取关</option><option>失败（平台拒绝）</option><option>结果待核实</option><option>已跳过</option><option>未操作</option></select></nav>
       <div class="table-wrap">
         <table>
           <thead>
@@ -62,6 +77,9 @@
         <strong>操作说明：</strong>候选项只是按规则计算的结果。请逐项核对主页和视频后再勾选。取关是不可批量撤销的操作；本工具会在执行前再次确认并记录结果。
       </aside>
     </main>
+    <script src="rules.js"></script>
     <script src="dashboard.js"></script>
+    <script src="avatar-review.js"></script>
+    <script src="management.js"></script>
   </body>
 </html>

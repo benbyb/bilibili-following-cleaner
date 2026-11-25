@@ -48,3 +48,10 @@ document.querySelector("#open-dashboard").addEventListener("click", async () => 
 });
 
 restoreConfig().catch(() => {});
+document.querySelector('#restore').onclick = () => chrome.tabs.create({url: chrome.runtime.getURL('dashboard.html')});
+document.querySelector('#list-only').addEventListener('click', () => {
+  chrome.tabs.create({url: chrome.runtime.getURL('dashboard.html') + '?days=30&listOnly=1'});
+});
+document.querySelector('#other-platforms').addEventListener('click', () => {
+  chrome.tabs.create({url: chrome.runtime.getURL('platforms.html')});
+});

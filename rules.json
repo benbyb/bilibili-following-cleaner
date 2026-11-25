@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "30 天未投稿或最近作品播放量低于 1000",
+  "group": {
+    "mode": "any",
+    "conditions": [
+      { "field": "daysSinceLatest", "op": "gte", "value": 30 },
+      { "field": "latestViews", "op": "lt", "value": 1000 }
+    ]
+  }
+}
